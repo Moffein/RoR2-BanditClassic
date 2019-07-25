@@ -15,7 +15,7 @@ using BepInEx.Configuration;
 namespace BanditClassic
 {
     [BepInDependency("com.bepis.r2api")]
-    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.1.2")]
+    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.2.0")]
     public class BanditClassic : BaseUnityPlugin
     {
         public void Awake()
@@ -80,9 +80,9 @@ namespace BanditClassic
                 field?.SetValue(secondarySkill.activationState, typeof(EntityStates.Bandit.PrepLightsOut)?.AssemblyQualifiedName);
 
                 GenericSkill utilitySkill = skillComponent.utility;
-                utilitySkill.activationState = new EntityStates.SerializableEntityStateType(typeof(EntityStates.Bandit.Smokebomb));
+                utilitySkill.activationState = new EntityStates.SerializableEntityStateType(typeof(EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay));
                 field = typeof(EntityStates.SerializableEntityStateType)?.GetField("_typeName", BindingFlags.NonPublic | BindingFlags.Instance);
-                field?.SetValue(utilitySkill.activationState, typeof(EntityStates.Bandit.Smokebomb)?.AssemblyQualifiedName);
+                field?.SetValue(utilitySkill.activationState, typeof(EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay)?.AssemblyQualifiedName);
 
                 GenericSkill specialSkill = skillComponent.special;
                 specialSkill.activationState = new EntityStates.SerializableEntityStateType(typeof(EntityStates.Bandit.GrenadeToss));
@@ -125,15 +125,15 @@ namespace BanditClassic
                 FireLightsOut.gainDamgeWithLevelMax = LightsOutLevelScalingMax.Value;
 
                 skillComponent.utility.baseRechargeInterval = 9f;
-                Smokebomb.damageCoefficient = SmokeDamage.Value;
-                Smokebomb.radius = SmokeRadius.Value;
-                Smokebomb.minimumStateDuration = SmokeMinDuration.Value;
+                EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.damageCoefficient = SmokeDamage.Value;
+                EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.radius = SmokeRadius.Value;
+                EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.minimumStateDuration = SmokeMinDuration.Value;
 
                 skillComponent.special.baseRechargeInterval = 4f;
                 Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().blastRadius = GrenRadius.Value;
                 Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().blastProcCoefficient = 1f;
                 Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().falloffModel = BlastAttack.FalloffModel.None;
-                Smokebomb.damageCoefficient = GrenDamage.Value;
+                GrenadeToss.damageCoefficient = GrenDamage.Value;
                 #endregion
 
                 #region skilldesc
@@ -151,7 +151,7 @@ namespace BanditClassic
                 {
                     skillComponent.secondary.skillDescriptionToken += " Enemies are instantly killed if their <color=#E5C962>health drops below " + LightsOutExecutePercentageBase.Value.ToString("P0").Replace(" ", "") + ".</color>";
                 }
-                skillComponent.utility.skillDescriptionToken = "<color=#95CDE5>Turn invisible.</color> After " + Smokebomb.duration.ToString("N0") + " seconds or after using another ability, surprise and <color=#E5C962>stun enemies for " + Smokebomb.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
+                skillComponent.utility.skillDescriptionToken = "<color=#95CDE5>Turn invisible.</color> After " + EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.duration.ToString("N0") + " seconds or after using another ability, surprise and <color=#E5C962>stun enemies for " + EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
                 skillComponent.special.skillDescriptionToken = "Toss an explosive <color=#E5C962>in a straight line</color> for <color=#E5C962>" + GrenadeToss.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
                 #endregion
                 SurvivorAPI.AddSurvivor(item);
@@ -448,111 +448,6 @@ namespace EntityStates.Bandit
         public static bool gainDamageWithLevel = false;
         public static float gainDamgeWithLevelAmount = 0.1f;
         public static float gainDamgeWithLevelMax = 4f;
-    }
-
-    public class Smokebomb : BaseState
-    {
-        public override void OnEnter()
-        {
-            base.OnEnter();
-            this.animator = base.GetModelAnimator();
-            this.CastSmoke();
-            if (base.characterBody && NetworkServer.active)
-            {
-                base.characterBody.AddBuff(BuffIndex.Cloak);
-                base.characterBody.AddBuff(BuffIndex.CloakSpeed);
-            }
-        }
-
-        public override void OnExit()
-        {
-            if (base.characterBody && NetworkServer.active)
-            {
-                if (base.characterBody.HasBuff(BuffIndex.Cloak))
-                {
-                    base.characterBody.RemoveBuff(BuffIndex.Cloak);
-                }
-                if (base.characterBody.HasBuff(BuffIndex.CloakSpeed))
-                {
-                    base.characterBody.RemoveBuff(BuffIndex.CloakSpeed);
-                }
-            }
-            if (!this.outer.destroying)
-            {
-                this.CastSmoke();
-            }
-            base.OnExit();
-        }
-
-        public override void FixedUpdate()
-        {
-            base.FixedUpdate();
-            this.stopwatch += Time.fixedDeltaTime;
-            if (this.stopwatch >= Smokebomb.duration && base.isAuthority)
-            {
-                this.outer.SetNextStateToMain();
-                return;
-            }
-        }
-
-        private void CastSmoke()
-        {
-            if (!this.hasCastSmoke)
-            {
-                Util.PlaySound(Smokebomb.startCloakSoundString, base.gameObject);
-                this.hasCastSmoke = true;
-            }
-            else
-            {
-                Util.PlaySound(Smokebomb.stopCloakSoundString, base.gameObject);
-            }
-            EffectManager.instance.SpawnEffect(Smokebomb.smokescreenEffectPrefab, new EffectData
-            {
-                origin = base.transform.position
-            }, false);
-            int layerIndex = this.animator.GetLayerIndex("Impact");
-            if (layerIndex >= 0)
-            {
-                this.animator.SetLayerWeight(layerIndex, 1f);
-                this.animator.PlayInFixedTime("LightImpact", layerIndex, 0f);
-            }
-            if (NetworkServer.active)
-            {
-                new BlastAttack
-                {
-                    attacker = base.gameObject,
-                    inflictor = base.gameObject,
-                    teamIndex = TeamComponent.GetObjectTeam(base.gameObject),
-                    baseDamage = this.damageStat * Smokebomb.damageCoefficient,
-                    baseForce = Smokebomb.forceMagnitude,
-                    position = base.transform.position,
-                    radius = Smokebomb.radius,
-                    falloffModel = BlastAttack.FalloffModel.None,
-                    damageType = DamageType.Stun1s
-                }.Fire();
-            }
-        }
-
-        public override InterruptPriority GetMinimumInterruptPriority()
-        {
-            if (this.stopwatch <= Smokebomb.minimumStateDuration)
-            {
-                return InterruptPriority.PrioritySkill;
-            }
-            return InterruptPriority.Any;
-        }
-
-        public static float duration = 3f;
-        public static float minimumStateDuration = 0.5f;
-        public static string startCloakSoundString = "Play_bandit_shift_land";
-        public static string stopCloakSoundString = "Play_bandit_shift_end";
-        public static GameObject smokescreenEffectPrefab = Resources.Load<GameObject>("prefabs/effects/smokescreeneffect");
-        public static float damageCoefficient = 1.4f;
-        public static float radius = 10f;
-        public static float forceMagnitude = 100f;
-        private float stopwatch;
-        private bool hasCastSmoke;
-        private Animator animator;
     }
 
     public class GrenadeToss : BaseState
