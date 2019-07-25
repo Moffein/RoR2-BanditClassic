@@ -4,18 +4,18 @@ using RoR2;
 using System;
 using System.Reflection;
 using UnityEngine;
-using UnityEngine.Networking;
 
 using EntityStates.Bandit;
 using RoR2.Projectile;
 using MonoMod.Cil;
 using Mono.Cecil.Cil;
 using BepInEx.Configuration;
+using System.Collections;
 
 namespace BanditClassic
 {
     [BepInDependency("com.bepis.r2api")]
-    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.2.0")]
+    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.2.1")]
     public class BanditClassic : BaseUnityPlugin
     {
         public void Awake()
@@ -190,6 +190,21 @@ namespace BanditClassic
                      });
                  };
             }
+            base.StartCoroutine(this.FixIce());
+        }
+
+        private IEnumerator FixIce()
+        {
+            for (; ; )
+            {
+                if (BodyCatalog.FindBodyPrefab("BanditBody") != null && BodyCatalog.FindBodyPrefab("BanditBody").GetComponent<SetStateOnHurt>() != null && BodyCatalog.FindBodyPrefab("BanditBody").GetComponent<SetStateOnHurt>().idleStateMachine != null && BodyCatalog.FindBodyPrefab("BanditBody").GetComponent<SetStateOnHurt>().idleStateMachine.Length != 0)
+                {
+                    BodyCatalog.FindBodyPrefab("BanditBody").GetComponent<SetStateOnHurt>().idleStateMachine[0] = BodyCatalog.FindBodyPrefab("BanditBody").GetComponent<SetStateOnHurt>().idleStateMachine[1];
+                    yield return null;
+                }
+                yield return new WaitForFixedUpdate();
+            }
+            yield break;
         }
 
         private static ConfigWrapper<float> BlastSpread;
