@@ -15,7 +15,7 @@ using System.Collections;
 namespace BanditClassic
 {
     [BepInDependency("com.bepis.r2api")]
-    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.2.1")]
+    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.3.0")]
     public class BanditClassic : BaseUnityPlugin
     {
         public void Awake()
@@ -25,26 +25,30 @@ namespace BanditClassic
             BlastMagnetism = base.Config.Wrap<float>("Blast", "Radius", "How wide Blast shots are. Default: 0.2, 0 disables smart collision", 0.2f);
             BlastMaxFireRate = base.Config.Wrap<float>("Blast", "Auto firerate", "Time between shots while autofiring. Default: 0.3", 0.3f);
             BlastMinFireRate = base.Config.Wrap<float>("Blast", "Max firerate", "Time between shots while mashing. Default: 0.2", 0.2f);
-            BlastReloadTime = base.Config.Wrap<float>("Blast", "Reload Time", "Time it takes to reload Blast. Default: 1, 0 removes reload", 1f);
+            BlastReloadTime = base.Config.Wrap<float>("Blast", "Reload Time", "Time it takes to reload Blast. Default: 1.2, 0 removes reload", 1.2f);
             BlastMagSize = base.Config.Wrap<int>("Blast", "Mag Size", "How many slugs Blast can shoot before reloading. Default: 8", 8);
             BlastSpread = base.Config.Wrap<float>("Blast", "Spread", "How much spread each shot adds. Default: 0.4", 0.4f);
-            BlastForce = base.Config.Wrap<float>("Blast", "Force", "How much pushing force each shot has. Default: 1000", 1000f);
+            BlastForce = base.Config.Wrap<float>("Blast", "Force", "How much push force each shot has. Default: 1000", 1000f);
 
+            LightsOutCooldown = base.Config.Wrap<float>("Lights Out", "Cooldown", "How long it takes for Lights Out to recharge. Default: 7", 7f);
             LightsOutDamage = base.Config.Wrap<float>("Lights Out", "Damage", "How much damage Lights Out deals. Default: 6", 6f);
             LightsOutDuration = base.Config.Wrap<float>("Lights Out", "Duration", "Length of the shooting animation. Default: 0.5", 0.5f);
-            LightsOutForce = base.Config.Wrap<float>("Lights Out", "Force", "How much pushing force each shot has. Default: 1000", 1000f);
+            LightsOutForce = base.Config.Wrap<float>("Lights Out", "Force", "How much push force each shot has. Default: 1000", 1000f);
+            LightsOutIgnoreArmor = base.Config.Wrap<bool>("Lights Out", "Ignores Armor", "Makes Lights Out ignore armor. Default: true", true);
 
+            SmokeCooldown = base.Config.Wrap<float>("Smokebomb", "Cooldown", "How long Smokebomb takes to recharge. Default: 10", 10f);
             SmokeDamage = base.Config.Wrap<float>("Smokebomb", "Damage", "How much damage Smokebomb deals. Default: 1.4", 1.4f);
             SmokeRadius = base.Config.Wrap<float>("Smokebomb", "Radius", "How large the stun aura is. Default: 10", 10f);
             SmokeMinDuration = base.Config.Wrap<float>("Smokebomb", "MinDuration", "How long a player must wait before being able to attack after entering cloak. Default: 0.5", 0.5f);
 
+            GrenCooldown = base.Config.Wrap<float>("Grenade Toss", "Cooldown", "How long Grenade Toss takes to recharge. Default: 4", 4f);
             GrenDamage = base.Config.Wrap<float>("Grenade Toss", "Damage", "How much damage Grenade Toss deals. Default: 3.2", 3.2f);
             GrenRadius = base.Config.Wrap<float>("Grenade Toss", "Radius", "Grenade explosive radius. Default: 10", 10f);
 
             LightsOutExecute = base.Config.Wrap<bool>("zExperimental: Lights Out Execute", "Execute Low HP Enemies", "Experimental: Lights Out executes enemies below a certain HP. Default: false", false);
-            LightsOutExecutePercentageBase = base.Config.Wrap<float>("zExperimental: Lights Out Execute", "Execute HP Percentage", "Experimental: HP percentage where Lights Out executes. Default: 0.05", 0.05f);
+            LightsOutExecutePercentageBase = base.Config.Wrap<float>("zExperimental: Lights Out Execute", "Execute HP Percentage", "Experimental: HP percentage where Lights Out executes. Default: 0.02", 0.02f);
             LightsOutExecutePercentageScalingRate = base.Config.Wrap<float>("zExperimental: Lights Out Execute", "Execute HP Percentage Scaling Rate", "Experimental: How much the execute threshold increases each level. Default: 0.01", 0.01f);
-            LightsOutExecutePercentageScalingMax = base.Config.Wrap<float>("zExperimental: Lights Out Execute", "Execute HP Percentage Scaling Max", "Experimental: Maximum increase for the execute threshold (does not include base execute threshold). Default: 0.05", 0.05f);
+            LightsOutExecutePercentageScalingMax = base.Config.Wrap<float>("zExperimental: Lights Out Execute", "Execute HP Percentage Scaling Max", "Experimental: Maximum increase for the execute threshold (does not include base execute threshold). Default: 0.08", 0.08f);
 
 
             LightsOutLevelScalingEnabled = base.Config.Wrap<bool>("zExperimental: Lights Out Damage Scaling", "Damage Scaling", "Experimental: Lights Out gains extra damage with each level. Default: false", false);
@@ -116,20 +120,28 @@ namespace BanditClassic
                 Blast.baseMinDuration = BlastMinFireRate.Value;
                 Blast.force = BlastForce.Value;
 
-                skillComponent.secondary.baseRechargeInterval = 7f;
+                skillComponent.secondary.baseRechargeInterval = LightsOutCooldown.Value;
                 FireLightsOut.damageCoefficient = LightsOutDamage.Value;
                 FireLightsOut.force = LightsOutForce.Value;
                 PrepLightsOut.baseDuration = LightsOutDuration.Value;
                 FireLightsOut.gainDamageWithLevel = LightsOutLevelScalingEnabled.Value;
                 FireLightsOut.gainDamgeWithLevelAmount = LightsOutLevelScalingRate.Value;
                 FireLightsOut.gainDamgeWithLevelMax = LightsOutLevelScalingMax.Value;
+                if (LightsOutIgnoreArmor.Value)
+                {
+                    FireLightsOut.ignoreArmor = true;
+                }
+                else
+                {
+                    FireLightsOut.ignoreArmor = false;
+                }
 
-                skillComponent.utility.baseRechargeInterval = 9f;
+                skillComponent.utility.baseRechargeInterval = SmokeCooldown.Value;
                 EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.damageCoefficient = SmokeDamage.Value;
                 EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.radius = SmokeRadius.Value;
                 EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.minimumStateDuration = SmokeMinDuration.Value;
 
-                skillComponent.special.baseRechargeInterval = 4f;
+                skillComponent.special.baseRechargeInterval = GrenCooldown.Value;
                 Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().blastRadius = GrenRadius.Value;
                 Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().blastProcCoefficient = 1f;
                 Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().falloffModel = BlastAttack.FalloffModel.None;
@@ -150,6 +162,10 @@ namespace BanditClassic
                 if (LightsOutExecute.Value)
                 {
                     skillComponent.secondary.skillDescriptionToken += " Enemies are instantly killed if their <color=#E5C962>health drops below " + LightsOutExecutePercentageBase.Value.ToString("P0").Replace(" ", "") + ".</color>";
+                }
+                if (LightsOutIgnoreArmor.Value)
+                {
+                    skillComponent.secondary.skillDescriptionToken += " <color=#E5C962> Ignores armor.</color>";
                 }
                 skillComponent.utility.skillDescriptionToken = "<color=#95CDE5>Turn invisible.</color> After " + EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.duration.ToString("N0") + " seconds or after using another ability, surprise and <color=#E5C962>stun enemies for " + EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
                 skillComponent.special.skillDescriptionToken = "Toss an explosive <color=#E5C962>in a straight line</color> for <color=#E5C962>" + GrenadeToss.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
@@ -175,7 +191,7 @@ namespace BanditClassic
                      c.Emit(OpCodes.Ldarg_1);
                      c.EmitDelegate<Func<DamageInfo, float>>((di) =>
                      {
-                         if (di.inflictor.name == "BanditBody(Clone)" && di.damageType == DamageType.ResetCooldownsOnKill)
+                         if (di.damageType == DamageType.ResetCooldownsOnKill && di.inflictor != null && di.inflictor.name == "BanditBody(Clone)")
                          {
                              if (LightsOutExecutePercentageScalingMax.Value > 0f && LightsOutExecutePercentageScalingRate.Value * (di.inflictor.GetComponent<CharacterBody>().level - 1) > LightsOutExecutePercentageScalingMax.Value)
                              {
@@ -216,17 +232,21 @@ namespace BanditClassic
         private static ConfigWrapper<float> BlastDamage;
         private static ConfigWrapper<float> BlastMagnetism;
 
+        private static ConfigWrapper<float> LightsOutCooldown;
         private static ConfigWrapper<float> LightsOutDamage;
         private static ConfigWrapper<float> LightsOutDuration;
         private static ConfigWrapper<float> LightsOutForce;
 
+        private static ConfigWrapper<float> SmokeCooldown;
         private static ConfigWrapper<float> SmokeDamage;
         private static ConfigWrapper<float> SmokeRadius;
         private static ConfigWrapper<float> SmokeMinDuration;
 
+        private static ConfigWrapper<float> GrenCooldown;
         private static ConfigWrapper<float> GrenDamage;
         private static ConfigWrapper<float> GrenRadius;
 
+        private static ConfigWrapper<bool> LightsOutIgnoreArmor;
         private static ConfigWrapper<bool> LightsOutExecute;
         private static ConfigWrapper<float> LightsOutExecutePercentageBase;
         private static ConfigWrapper<float> LightsOutExecutePercentageScalingRate;
@@ -409,7 +429,15 @@ namespace EntityStates.Bandit
                 bulletAttack.isCrit = Util.CheckRoll(this.critStat, base.characterBody.master);
                 bulletAttack.HitEffectNormal = false;
                 bulletAttack.radius = 0.5f;
-                bulletAttack.damageType |= DamageType.ResetCooldownsOnKill;
+
+                if (!ignoreArmor)
+                {
+                    bulletAttack.damageType |= DamageType.ResetCooldownsOnKill;
+                }
+                else
+                {
+                    bulletAttack.damageType = (DamageType.ResetCooldownsOnKill | DamageType.BypassArmor);
+                }
                 bulletAttack.smartCollision = true;
 
                 if (gainDamageWithLevel)
@@ -463,6 +491,7 @@ namespace EntityStates.Bandit
         public static bool gainDamageWithLevel = false;
         public static float gainDamgeWithLevelAmount = 0.1f;
         public static float gainDamgeWithLevelMax = 4f;
+        public static bool ignoreArmor = false;
     }
 
     public class GrenadeToss : BaseState
