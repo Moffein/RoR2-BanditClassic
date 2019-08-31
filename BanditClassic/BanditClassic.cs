@@ -15,13 +15,13 @@ using System.Collections;
 namespace BanditClassic
 {
     [BepInDependency("com.bepis.r2api")]
-    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.3.0")]
+    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.4.0")]
     public class BanditClassic : BaseUnityPlugin
     {
         public void Awake()
         {
             #region cfg
-            BlastDamage = base.Config.Wrap<float>("Blast", "Damage", "How much damage Blast deals. Default: 1.8", 1.8f);
+            BlastDamage = base.Config.Wrap<float>("Blast", "Damage", "How much damage Blast deals. Default: 1.9", 1.9f);
             BlastMagnetism = base.Config.Wrap<float>("Blast", "Radius", "How wide Blast shots are. Default: 0.2, 0 disables smart collision", 0.2f);
             BlastMaxFireRate = base.Config.Wrap<float>("Blast", "Auto firerate", "Time between shots while autofiring. Default: 0.3", 0.3f);
             BlastMinFireRate = base.Config.Wrap<float>("Blast", "Max firerate", "Time between shots while mashing. Default: 0.2", 0.2f);
@@ -43,7 +43,7 @@ namespace BanditClassic
 
             GrenCooldown = base.Config.Wrap<float>("Grenade Toss", "Cooldown", "How long Grenade Toss takes to recharge. Default: 4", 4f);
             GrenDamage = base.Config.Wrap<float>("Grenade Toss", "Damage", "How much damage Grenade Toss deals. Default: 3.2", 3.2f);
-            GrenRadius = base.Config.Wrap<float>("Grenade Toss", "Radius", "Grenade explosive radius. Default: 10", 10f);
+            GrenRadius = base.Config.Wrap<float>("Grenade Toss", "Radius", "Grenade explosive radius. Default: 8", 8f);
 
             LightsOutExecute = base.Config.Wrap<bool>("zExperimental: Lights Out Execute", "Execute Low HP Enemies", "Experimental: Lights Out executes enemies below a certain HP. Default: false", false);
             LightsOutExecutePercentageBase = base.Config.Wrap<float>("zExperimental: Lights Out Execute", "Execute HP Percentage", "Experimental: HP percentage where Lights Out executes. Default: 0.02", 0.02f);
@@ -54,6 +54,11 @@ namespace BanditClassic
             LightsOutLevelScalingEnabled = base.Config.Wrap<bool>("zExperimental: Lights Out Damage Scaling", "Damage Scaling", "Experimental: Lights Out gains extra damage with each level. Default: false", false);
             LightsOutLevelScalingRate = base.Config.Wrap<float>("zExperimental: Lights Out Damage Scaling", "Damage Scaling Rate", "Experimental: How much extra damage Lights Out gains each level. Default: 0.1", 0.1f);
             LightsOutLevelScalingMax = base.Config.Wrap<float>("zExperimental: Lights Out Damage Scaling", "Damage Scaling Max", "Experimental: How much extra damage Lights Out can gain in total. Default: 4", 4f);
+
+            AcidBombEnabled = base.Config.Wrap<bool>("zExperimentl: Acid Bomb", "Replace Grenade Toss", "Replace Grenade Toss with a weakening Acid Bomb. Default: false", false);
+            AcidBombCooldown = base.Config.Wrap<float>("zExperimentl: Acid Bomb", "Cooldown", "How long Acid Bomb takes to recharge. Default: 7", 7f);
+            AcidBombDamage = base.Config.Wrap<float>("zExperimentl: Acid Bomb", "Damage", "How much damage Acid Bomb deals. Default: 4.5", 4.5f);
+            AcidBombRadius = base.Config.Wrap<float>("zExperimentl: Acid Bomb", "Radius", "Acid Bomb explosive radius. Default: 5", 5f);
             #endregion
 
             SurvivorAPI.SurvivorCatalogReady += delegate (object s, EventArgs e)
@@ -96,7 +101,15 @@ namespace BanditClassic
                 skillComponent.primary.skillNameToken = "Blast";
                 skillComponent.secondary.skillNameToken = "Lights Out";
                 skillComponent.utility.skillNameToken = "Smokebomb";
-                skillComponent.special.skillNameToken = "Grenade Toss";
+
+                if (!AcidBombEnabled.Value)
+                {
+                    skillComponent.special.skillNameToken = "Grenade Toss";
+                }
+                else
+                {
+                    skillComponent.special.skillNameToken = "Acid Bomb";
+                }
                 #endregion
 
                 #region skilloverwrite
@@ -141,11 +154,21 @@ namespace BanditClassic
                 EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.radius = SmokeRadius.Value;
                 EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.minimumStateDuration = SmokeMinDuration.Value;
 
-                skillComponent.special.baseRechargeInterval = GrenCooldown.Value;
-                Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().blastRadius = GrenRadius.Value;
+                if (!AcidBombEnabled.Value)
+                {
+                    skillComponent.special.baseRechargeInterval = GrenCooldown.Value;
+                    Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().blastRadius = GrenRadius.Value;
+                    GrenadeToss.damageCoefficient = GrenDamage.Value;
+                }
+                else
+                {
+                    skillComponent.special.baseRechargeInterval = AcidBombCooldown.Value;
+                    Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().blastRadius = AcidBombRadius.Value;
+                    Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileDamage>().damageType = DamageType.WeakOnHit;
+                    GrenadeToss.damageCoefficient = AcidBombDamage.Value;
+                }
                 Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().blastProcCoefficient = 1f;
                 Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().falloffModel = BlastAttack.FalloffModel.None;
-                GrenadeToss.damageCoefficient = GrenDamage.Value;
                 #endregion
 
                 #region skilldesc
@@ -163,48 +186,54 @@ namespace BanditClassic
                 {
                     skillComponent.secondary.skillDescriptionToken += " Enemies are instantly killed if their <color=#E5C962>health drops below " + LightsOutExecutePercentageBase.Value.ToString("P0").Replace(" ", "") + ".</color>";
                 }
-                if (LightsOutIgnoreArmor.Value)
+                if (FireLightsOut.ignoreArmor)
                 {
                     skillComponent.secondary.skillDescriptionToken += " <color=#E5C962> Ignores armor.</color>";
                 }
+
                 skillComponent.utility.skillDescriptionToken = "<color=#95CDE5>Turn invisible.</color> After " + EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.duration.ToString("N0") + " seconds or after using another ability, surprise and <color=#E5C962>stun enemies for " + EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
                 skillComponent.special.skillDescriptionToken = "Toss an explosive <color=#E5C962>in a straight line</color> for <color=#E5C962>" + GrenadeToss.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
+                if (AcidBombEnabled.Value)
+                {
+                    skillComponent.special.skillDescriptionToken += " Enemies caught in the blast are <color=#E5C962>Weakened,</color> reducing their movement speed, armor, and damage.";
+                }
                 #endregion
                 SurvivorAPI.AddSurvivor(item);
             };
+
             if (LightsOutExecute.Value)
             {
                 IL.RoR2.HealthComponent.TakeDamage += (il) =>
-                 {
-                     var c = new ILCursor(il);
-                     c.GotoNext(
-                         x => x.MatchLdnull(),
-                         x => x.MatchStloc(7),
-                         x => x.MatchLdcR4(0.0f),
-                         x => x.MatchStloc(8),
-                         x => x.MatchLdstr(""),
-                         x => x.MatchStloc(9),
-                         x => x.MatchLdarg(0)
-                         );
-                     c.Index += 2;
-                     c.Remove();
-                     c.Emit(OpCodes.Ldarg_1);
-                     c.EmitDelegate<Func<DamageInfo, float>>((di) =>
-                     {
-                         if (di.damageType == DamageType.ResetCooldownsOnKill && di.inflictor != null && di.inflictor.name == "BanditBody(Clone)")
-                         {
-                             if (LightsOutExecutePercentageScalingMax.Value > 0f && LightsOutExecutePercentageScalingRate.Value * (di.inflictor.GetComponent<CharacterBody>().level - 1) > LightsOutExecutePercentageScalingMax.Value)
-                             {
-                                 return (LightsOutExecutePercentageBase.Value + LightsOutExecutePercentageScalingMax.Value);
-                             }
-                             else
-                             {
-                                 return (LightsOutExecutePercentageBase.Value + LightsOutExecutePercentageScalingRate.Value*(di.inflictor.GetComponent<CharacterBody>().level - 1));
-                             }
-                         }
-                         return 0.0f;
-                     });
-                 };
+                {
+                    var c = new ILCursor(il);
+                    c.GotoNext(
+                        x => x.MatchLdnull(),
+                        x => x.MatchStloc(7),
+                        x => x.MatchLdcR4(0.0f),
+                        x => x.MatchStloc(8),
+                        x => x.MatchLdstr(""),
+                        x => x.MatchStloc(9),
+                        x => x.MatchLdarg(0)
+                        );
+                    c.Index += 2;
+                    c.Remove();
+                    c.Emit(OpCodes.Ldarg_1);
+                    c.EmitDelegate<Func<DamageInfo, float>>((di) =>
+                    {
+                        if ((di.damageType == (DamageType.ResetCooldownsOnKill | DamageType.BypassArmor) || di.damageType == DamageType.ResetCooldownsOnKill) && di.inflictor != null && di.inflictor.name == "BanditBody(Clone)")
+                        {
+                            if (LightsOutExecutePercentageScalingMax.Value > 0f && LightsOutExecutePercentageScalingRate.Value * (di.inflictor.GetComponent<CharacterBody>().level - 1) > LightsOutExecutePercentageScalingMax.Value)
+                            {
+                                return (LightsOutExecutePercentageBase.Value + LightsOutExecutePercentageScalingMax.Value);
+                            }
+                            else
+                            {
+                                return (LightsOutExecutePercentageBase.Value + LightsOutExecutePercentageScalingRate.Value * (di.inflictor.GetComponent<CharacterBody>().level - 1));
+                            }
+                        }
+                        return 0.0f;
+                    });
+                };
             }
             base.StartCoroutine(this.FixIce());
         }
@@ -255,6 +284,11 @@ namespace BanditClassic
         private static ConfigWrapper<bool> LightsOutLevelScalingEnabled;
         private static ConfigWrapper<float> LightsOutLevelScalingRate;
         private static ConfigWrapper<float> LightsOutLevelScalingMax;
+
+        private static ConfigWrapper<bool> AcidBombEnabled;
+        private static ConfigWrapper<float> AcidBombCooldown;
+        private static ConfigWrapper<float> AcidBombDamage;
+        private static ConfigWrapper<float> AcidBombRadius;
     }
 }
 
@@ -541,6 +575,60 @@ namespace EntityStates.Bandit
 
         public static GameObject projectilePrefab = Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile");
         public static float damageCoefficient = 3.2f;
+        public static float force = 0f;
+        public static float selfForce = 0f;
+        public static float baseDuration = 0.5f;
+        private float duration;
+        public int bulletCountCurrent = 1;
+    }
+
+    public class ThermiteBomb : BaseState
+    {
+        // Token: 0x060028BB RID: 10427 RVA: 0x000B8EEC File Offset: 0x000B70EC
+        public override void OnEnter()
+        {
+            base.OnEnter();
+            this.duration = ThermiteBomb.baseDuration / this.attackSpeedStat;
+            Ray aimRay = base.GetAimRay();
+            base.StartAimMode(aimRay, 2f, false);
+            base.PlayAnimation("Gesture", "FireRevolver", "FireRevolver.playbackRate", this.duration);
+            Util.PlayScaledSound(PrepLightsOut.prepSoundString, base.gameObject, 1.2f);
+            if (base.isAuthority)
+            {
+                ProjectileManager.instance.FireProjectile(ThermiteBomb.projectilePrefab, aimRay.origin, Util.QuaternionSafeLookRotation(aimRay.direction), base.gameObject, this.damageStat * ThermiteBomb.damageCoefficient, 0f, Util.CheckRoll(this.critStat, base.characterBody.master), DamageColorIndex.Default, null, -1f);
+            }
+            if (base.characterMotor && !base.characterMotor.isGrounded)
+            {
+                Vector3 vector = -aimRay.direction * ThermiteBomb.selfForce;
+                vector.y *= 0.5f;
+                base.characterMotor.ApplyForce(vector, true, false);
+            }
+        }
+
+        // Token: 0x060028BC RID: 10428 RVA: 0x0009B508 File Offset: 0x00099708
+        public override void OnExit()
+        {
+            base.OnExit();
+        }
+
+        // Token: 0x060028BD RID: 10429 RVA: 0x000B9016 File Offset: 0x000B7216
+        public override void FixedUpdate()
+        {
+            base.FixedUpdate();
+            if (base.fixedAge >= this.duration && base.isAuthority)
+            {
+                this.outer.SetNextStateToMain();
+                return;
+            }
+        }
+
+        public override InterruptPriority GetMinimumInterruptPriority()
+        {
+            return InterruptPriority.Skill;
+        }
+
+        public static GameObject projectilePrefab = Resources.Load<GameObject>("prefabs/projectiles/thermite");
+        public static float damageCoefficient = 6f;
         public static float force = 0f;
         public static float selfForce = 0f;
         public static float baseDuration = 0.5f;
