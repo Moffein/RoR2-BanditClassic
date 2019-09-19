@@ -11,18 +11,19 @@ using MonoMod.Cil;
 using Mono.Cecil.Cil;
 using BepInEx.Configuration;
 using System.Collections;
+using RoR2.Skills;
 
 namespace BanditClassic
 {
     [BepInDependency("com.bepis.r2api")]
-    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.4.0")]
+    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.4.2")]
     public class BanditClassic : BaseUnityPlugin
     {
         public void Awake()
         {
             #region cfg
-            BlastDamage = base.Config.Wrap<float>("Blast", "Damage", "How much damage Blast deals. Default: 1.9", 1.9f);
-            BlastMagnetism = base.Config.Wrap<float>("Blast", "Radius", "How wide Blast shots are. Default: 0.2, 0 disables smart collision", 0.2f);
+            BlastDamage = base.Config.Wrap<float>("Blast", "Damage", "How much damage Blast deals. Default: 2", 2f);
+            BlastMagnetism = base.Config.Wrap<float>("Blast", "Radius", "How wide Blast shots are. Default: 0.2, 0 disables smart collision", 0.25f);
             BlastMaxFireRate = base.Config.Wrap<float>("Blast", "Auto firerate", "Time between shots while autofiring. Default: 0.3", 0.3f);
             BlastMinFireRate = base.Config.Wrap<float>("Blast", "Max firerate", "Time between shots while mashing. Default: 0.2", 0.2f);
             BlastReloadTime = base.Config.Wrap<float>("Blast", "Reload Time", "Time it takes to reload Blast. Default: 1.2, 0 removes reload", 1.2f);
@@ -32,9 +33,9 @@ namespace BanditClassic
 
             LightsOutCooldown = base.Config.Wrap<float>("Lights Out", "Cooldown", "How long it takes for Lights Out to recharge. Default: 7", 7f);
             LightsOutDamage = base.Config.Wrap<float>("Lights Out", "Damage", "How much damage Lights Out deals. Default: 6", 6f);
-            LightsOutDuration = base.Config.Wrap<float>("Lights Out", "Duration", "Length of the shooting animation. Default: 0.5", 0.5f);
+            LightsOutDuration = base.Config.Wrap<float>("Lights Out", "Duration", "Length of the shooting animation. Default: 0.65", 0.65f);
             LightsOutForce = base.Config.Wrap<float>("Lights Out", "Force", "How much push force each shot has. Default: 1000", 1000f);
-            LightsOutIgnoreArmor = base.Config.Wrap<bool>("Lights Out", "Ignores Armor", "Makes Lights Out ignore armor. Default: true", true);
+            LightsOutIgnoreArmor = base.Config.Wrap<bool>("Lights Out", "Ignores Armor", "Makes Lights Out ignore armor. Default: false", false);
 
             SmokeCooldown = base.Config.Wrap<float>("Smokebomb", "Cooldown", "How long Smokebomb takes to recharge. Default: 10", 10f);
             SmokeDamage = base.Config.Wrap<float>("Smokebomb", "Damage", "How much damage Smokebomb deals. Default: 1.4", 1.4f);
@@ -45,11 +46,12 @@ namespace BanditClassic
             GrenDamage = base.Config.Wrap<float>("Grenade Toss", "Damage", "How much damage Grenade Toss deals. Default: 3.2", 3.2f);
             GrenRadius = base.Config.Wrap<float>("Grenade Toss", "Radius", "Grenade explosive radius. Default: 8", 8f);
 
+            /*
             LightsOutExecute = base.Config.Wrap<bool>("zExperimental: Lights Out Execute", "Execute Low HP Enemies", "Experimental: Lights Out executes enemies below a certain HP. Default: false", false);
             LightsOutExecutePercentageBase = base.Config.Wrap<float>("zExperimental: Lights Out Execute", "Execute HP Percentage", "Experimental: HP percentage where Lights Out executes. Default: 0.02", 0.02f);
             LightsOutExecutePercentageScalingRate = base.Config.Wrap<float>("zExperimental: Lights Out Execute", "Execute HP Percentage Scaling Rate", "Experimental: How much the execute threshold increases each level. Default: 0.01", 0.01f);
             LightsOutExecutePercentageScalingMax = base.Config.Wrap<float>("zExperimental: Lights Out Execute", "Execute HP Percentage Scaling Max", "Experimental: Maximum increase for the execute threshold (does not include base execute threshold). Default: 0.08", 0.08f);
-
+            */
 
             LightsOutLevelScalingEnabled = base.Config.Wrap<bool>("zExperimental: Lights Out Damage Scaling", "Damage Scaling", "Experimental: Lights Out gains extra damage with each level. Default: false", false);
             LightsOutLevelScalingRate = base.Config.Wrap<float>("zExperimental: Lights Out Damage Scaling", "Damage Scaling Rate", "Experimental: How much extra damage Lights Out gains each level. Default: 0.1", 0.1f);
@@ -57,7 +59,7 @@ namespace BanditClassic
 
             AcidBombEnabled = base.Config.Wrap<bool>("zExperimentl: Acid Bomb", "Replace Grenade Toss", "Replace Grenade Toss with a weakening Acid Bomb. Default: false", false);
             AcidBombCooldown = base.Config.Wrap<float>("zExperimentl: Acid Bomb", "Cooldown", "How long Acid Bomb takes to recharge. Default: 7", 7f);
-            AcidBombDamage = base.Config.Wrap<float>("zExperimentl: Acid Bomb", "Damage", "How much damage Acid Bomb deals. Default: 4.5", 4.5f);
+            AcidBombDamage = base.Config.Wrap<float>("zExperimentl: Acid Bomb", "Damage", "How much damage Acid Bomb deals. Default: 6", 6f);
             AcidBombRadius = base.Config.Wrap<float>("zExperimentl: Acid Bomb", "Radius", "Acid Bomb explosive radius. Default: 5", 5f);
             #endregion
 
@@ -72,55 +74,25 @@ namespace BanditClassic
                     unlockableName = "",
                     survivorIndex = SurvivorIndex.Count
                 };
-
                 item.bodyPrefab.GetComponent<CharacterBody>().preferredPodPrefab = Resources.Load<GameObject>("prefabs/networkedobjects/survivorpod");
-
-                #region skillsetup
                 SkillLocator skillComponent = item.bodyPrefab.GetComponent<SkillLocator>();
+                GenericSkill[] banditSkills = item.bodyPrefab.GetComponents<GenericSkill>();
 
-                GenericSkill primarySkill = skillComponent.primary;
-                primarySkill.activationState = new EntityStates.SerializableEntityStateType(typeof(EntityStates.Bandit.Blast));
+                #region primary
+                SkillDef primaryDef = SkillDef.CreateInstance<SkillDef>();
+                primaryDef.activationState = new EntityStates.SerializableEntityStateType(typeof(EntityStates.Bandit.Blast));
                 var field = typeof(EntityStates.SerializableEntityStateType)?.GetField("_typeName", BindingFlags.NonPublic | BindingFlags.Instance);
-                field?.SetValue(primarySkill.activationState, typeof(EntityStates.Bandit.Blast)?.AssemblyQualifiedName);
+                field?.SetValue(primaryDef.activationState, typeof(EntityStates.Bandit.Blast)?.AssemblyQualifiedName);
 
-                GenericSkill secondarySkill = skillComponent.secondary;
-                secondarySkill.activationState = new EntityStates.SerializableEntityStateType(typeof(EntityStates.Bandit.PrepLightsOut));
-                field = typeof(EntityStates.SerializableEntityStateType)?.GetField("_typeName", BindingFlags.NonPublic | BindingFlags.Instance);
-                field?.SetValue(secondarySkill.activationState, typeof(EntityStates.Bandit.PrepLightsOut)?.AssemblyQualifiedName);
-
-                GenericSkill utilitySkill = skillComponent.utility;
-                utilitySkill.activationState = new EntityStates.SerializableEntityStateType(typeof(EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay));
-                field = typeof(EntityStates.SerializableEntityStateType)?.GetField("_typeName", BindingFlags.NonPublic | BindingFlags.Instance);
-                field?.SetValue(utilitySkill.activationState, typeof(EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay)?.AssemblyQualifiedName);
-
-                GenericSkill specialSkill = skillComponent.special;
-                specialSkill.activationState = new EntityStates.SerializableEntityStateType(typeof(EntityStates.Bandit.GrenadeToss));
-                field = typeof(EntityStates.SerializableEntityStateType)?.GetField("_typeName", BindingFlags.NonPublic | BindingFlags.Instance);
-                field?.SetValue(specialSkill.activationState, typeof(EntityStates.Bandit.GrenadeToss)?.AssemblyQualifiedName);
-
-                skillComponent.primary.skillNameToken = "Blast";
-                skillComponent.secondary.skillNameToken = "Lights Out";
-                skillComponent.utility.skillNameToken = "Smokebomb";
-
-                if (!AcidBombEnabled.Value)
-                {
-                    skillComponent.special.skillNameToken = "Grenade Toss";
-                }
-                else
-                {
-                    skillComponent.special.skillNameToken = "Acid Bomb";
-                }
-                #endregion
-
-                #region skilloverwrite
-                skillComponent.primary.baseRechargeInterval = BlastReloadTime.Value;
+                primaryDef.baseRechargeInterval = BlastReloadTime.Value;
                 if (BlastReloadTime.Value == 0f)
                 {
-                    skillComponent.primary.baseMaxStock = 1;
+                    primaryDef.baseMaxStock = 1;
                 }
                 else
                 {
-                    skillComponent.primary.baseMaxStock = BlastMagSize.Value;
+                    primaryDef.baseMaxStock = BlastMagSize.Value;
+                    primaryDef.rechargeStock = BlastMagSize.Value;
                 }
                 Blast.bulletRadius = BlastMagnetism.Value;
                 if (BlastMagnetism.Value == 0f)
@@ -132,8 +104,34 @@ namespace BanditClassic
                 Blast.baseMaxDuration = BlastMaxFireRate.Value;
                 Blast.baseMinDuration = BlastMinFireRate.Value;
                 Blast.force = BlastForce.Value;
+                primaryDef.skillDescriptionToken = "Fire a powerful slug for <color=#E5C962>" + Blast.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
+                if (BlastReloadTime.Value > 0f && BlastMagSize.Value > 1)
+                {
+                    primaryDef.skillDescriptionToken += " Reload every " + BlastMagSize.Value + " shots.";
+                }
 
-                skillComponent.secondary.baseRechargeInterval = LightsOutCooldown.Value;
+                primaryDef.skillName = "Blast";
+                primaryDef.skillNameToken = "Blast";
+                primaryDef.activationStateMachineName = skillComponent.primary.skillFamily.variants[0].skillDef.activationStateMachineName;
+                primaryDef.isBullets = true;
+                primaryDef.shootDelay = 0;
+                primaryDef.beginSkillCooldownOnSkillEnd = false;
+                primaryDef.interruptPriority = EntityStates.InterruptPriority.Any;
+                primaryDef.isCombatSkill = true;
+                primaryDef.noSprint = true;
+                primaryDef.canceledFromSprinting = false;
+                primaryDef.mustKeyPress = false;
+                primaryDef.icon = skillComponent.primary.skillFamily.variants[0].skillDef.icon;
+                primaryDef.requiredStock = 1;
+                primaryDef.stockToConsume = 1;
+                skillComponent.primary.skillFamily.variants[0].skillDef = primaryDef;
+                #endregion
+                #region secondary
+                SkillDef secondaryDef = SkillDef.CreateInstance<SkillDef>();
+                secondaryDef.activationState = new EntityStates.SerializableEntityStateType(typeof(EntityStates.Bandit.PrepLightsOut));
+                field = typeof(EntityStates.SerializableEntityStateType)?.GetField("_typeName", BindingFlags.NonPublic | BindingFlags.Instance);
+                field?.SetValue(secondaryDef.activationState, typeof(EntityStates.Bandit.PrepLightsOut)?.AssemblyQualifiedName);
+                secondaryDef.baseRechargeInterval = LightsOutCooldown.Value;
                 FireLightsOut.damageCoefficient = LightsOutDamage.Value;
                 FireLightsOut.force = LightsOutForce.Value;
                 PrepLightsOut.baseDuration = LightsOutDuration.Value;
@@ -148,71 +146,111 @@ namespace BanditClassic
                 {
                     FireLightsOut.ignoreArmor = false;
                 }
-
-                skillComponent.utility.baseRechargeInterval = SmokeCooldown.Value;
+                secondaryDef.skillDescriptionToken = "Take aim with a revolver, <color=#E5C962>dealing " + FireLightsOut.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color> If the ability <color=#E5C962>kills an enemy,</color> <color=#95CDE5>skill cooldowns are all reset to 0.</color>";
+                if (LightsOutLevelScalingEnabled.Value)
+                {
+                    secondaryDef.skillDescriptionToken += " Gains an extra <color=#E5C962>" + LightsOutLevelScalingRate.Value.ToString("P0").Replace(" ", "") + " damage</color> per level.";
+                }
+               /* if (LightsOutExecute.Value)
+                {
+                    secondaryDef.skillDescriptionToken += " Enemies are instantly killed if their <color=#E5C962>health drops below " + LightsOutExecutePercentageBase.Value.ToString("P0").Replace(" ", "") + ".</color>";
+                }*/
+                if (FireLightsOut.ignoreArmor)
+                {
+                    secondaryDef.skillDescriptionToken += " <color=#E5C962> Ignores armor.</color>";
+                }
+                secondaryDef.skillNameToken = "Lights Out";
+                secondaryDef.skillName = "LightsOut";
+                secondaryDef.baseMaxStock = 1;
+                secondaryDef.rechargeStock = 1;
+                secondaryDef.isBullets = false;
+                secondaryDef.shootDelay = 0.3f;
+                secondaryDef.activationStateMachineName = skillComponent.secondary.skillFamily.variants[0].skillDef.activationStateMachineName;
+                secondaryDef.icon = skillComponent.secondary.skillFamily.variants[0].skillDef.icon;
+                secondaryDef.interruptPriority = EntityStates.InterruptPriority.Skill;
+                secondaryDef.beginSkillCooldownOnSkillEnd = false;
+                secondaryDef.isCombatSkill = true;
+                secondaryDef.canceledFromSprinting = false;
+                secondaryDef.mustKeyPress = false;
+                secondaryDef.requiredStock = 1;
+                secondaryDef.stockToConsume = 1;
+                skillComponent.secondary.skillFamily.variants[0].skillDef = secondaryDef;
+                #endregion
+                #region utility
+                skillComponent.utility.skillFamily.variants[0].skillDef.baseRechargeInterval = SmokeCooldown.Value;
                 EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.damageCoefficient = SmokeDamage.Value;
                 EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.radius = SmokeRadius.Value;
                 EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.minimumStateDuration = SmokeMinDuration.Value;
+                skillComponent.utility.skillFamily.variants[0].skillDef.skillNameToken = "Smokebomb";
+                skillComponent.utility.skillFamily.variants[0].skillDef.skillDescriptionToken = "<color=#95CDE5>Turn invisible.</color> After " + EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.duration.ToString("N0") + " seconds or after using another ability, surprise and <color=#E5C962>stun enemies for " + EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
+                #endregion
+                #region special
+                SkillDef specialDef = SkillDef.CreateInstance<SkillDef>();
+                specialDef.activationState = new EntityStates.SerializableEntityStateType(typeof(EntityStates.Bandit.GrenadeToss));
+                field = typeof(EntityStates.SerializableEntityStateType)?.GetField("_typeName", BindingFlags.NonPublic | BindingFlags.Instance);
+                field?.SetValue(specialDef.activationState, typeof(EntityStates.Bandit.GrenadeToss)?.AssemblyQualifiedName);
 
                 if (!AcidBombEnabled.Value)
                 {
-                    skillComponent.special.baseRechargeInterval = GrenCooldown.Value;
+                    specialDef.skillNameToken = "Grenade Toss";
+                }
+                else
+                {
+                    specialDef.skillNameToken = "Acid Bomb";
+                }
+                if (!AcidBombEnabled.Value)
+                {
+                    specialDef.baseRechargeInterval = GrenCooldown.Value;
                     Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().blastRadius = GrenRadius.Value;
                     GrenadeToss.damageCoefficient = GrenDamage.Value;
                 }
                 else
                 {
-                    skillComponent.special.baseRechargeInterval = AcidBombCooldown.Value;
+                    specialDef.baseRechargeInterval = AcidBombCooldown.Value;
                     Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().blastRadius = AcidBombRadius.Value;
                     Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileDamage>().damageType = DamageType.WeakOnHit;
                     GrenadeToss.damageCoefficient = AcidBombDamage.Value;
                 }
                 Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().blastProcCoefficient = 1f;
                 Resources.Load<GameObject>("prefabs/projectiles/banditgrenadeprojectile").GetComponent<ProjectileImpactExplosion>().falloffModel = BlastAttack.FalloffModel.None;
-                #endregion
 
-                #region skilldesc
-                skillComponent.primary.skillDescriptionToken = "Fire a powerful slug for <color=#E5C962>" + Blast.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
-                if (BlastReloadTime.Value > 0f && BlastMagSize.Value > 1)
-                {
-                    skillComponent.primary.skillDescriptionToken += " Reload every " + BlastMagSize.Value + " shots.";
-                }
-                skillComponent.secondary.skillDescriptionToken = "Take aim with a revolver, <color=#E5C962>dealing " + FireLightsOut.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color> If the ability <color=#E5C962>kills an enemy,</color> <color=#95CDE5>skill cooldowns are all reset to 0.</color>";
-                if (LightsOutLevelScalingEnabled.Value)
-                {
-                    skillComponent.secondary.skillDescriptionToken += " Gains an extra <color=#E5C962>" + LightsOutLevelScalingRate.Value.ToString("P0").Replace(" ", "") + " damage</color> per level.";
-                }
-                if (LightsOutExecute.Value)
-                {
-                    skillComponent.secondary.skillDescriptionToken += " Enemies are instantly killed if their <color=#E5C962>health drops below " + LightsOutExecutePercentageBase.Value.ToString("P0").Replace(" ", "") + ".</color>";
-                }
-                if (FireLightsOut.ignoreArmor)
-                {
-                    skillComponent.secondary.skillDescriptionToken += " <color=#E5C962> Ignores armor.</color>";
-                }
-
-                skillComponent.utility.skillDescriptionToken = "<color=#95CDE5>Turn invisible.</color> After " + EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.duration.ToString("N0") + " seconds or after using another ability, surprise and <color=#E5C962>stun enemies for " + EntityStates.Commando.CommandoWeapon.CastSmokescreenNoDelay.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
-                skillComponent.special.skillDescriptionToken = "Toss an explosive <color=#E5C962>in a straight line</color> for <color=#E5C962>" + GrenadeToss.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
+                specialDef.skillDescriptionToken = "Toss an explosive <color=#E5C962>in a straight line</color> for <color=#E5C962>" + GrenadeToss.damageCoefficient.ToString("P0").Replace(" ", "") + " damage.</color>";
                 if (AcidBombEnabled.Value)
                 {
-                    skillComponent.special.skillDescriptionToken += " Enemies caught in the blast are <color=#E5C962>Weakened,</color> reducing their movement speed, armor, and damage.";
+                    specialDef.skillDescriptionToken += " Enemies caught in the blast are <color=#E5C962>Weakened,</color> reducing their movement speed, armor, and damage.";
                 }
+                specialDef.skillName = "Grenade";
+                specialDef.icon = skillComponent.special.skillFamily.variants[0].skillDef.icon;
+                specialDef.shootDelay = 0.08f;
+                specialDef.baseMaxStock = 1;
+                specialDef.rechargeStock = 1;
+                specialDef.isBullets = false;
+                specialDef.beginSkillCooldownOnSkillEnd = false;
+                specialDef.activationStateMachineName = skillComponent.special.skillFamily.variants[0].skillDef.activationStateMachineName;
+                specialDef.interruptPriority = EntityStates.InterruptPriority.Skill;
+                specialDef.isCombatSkill = true;
+                specialDef.noSprint = false;
+                specialDef.canceledFromSprinting = false;
+                specialDef.mustKeyPress = false;
+                specialDef.requiredStock = 1;
+                specialDef.stockToConsume = 1;
+
+                skillComponent.special.skillFamily.variants[0].skillDef = specialDef;
                 #endregion
                 SurvivorAPI.AddSurvivor(item);
             };
-
+            /*
             if (LightsOutExecute.Value)
             {
                 IL.RoR2.HealthComponent.TakeDamage += (il) =>
                 {
                     var c = new ILCursor(il);
+
                     c.GotoNext(
-                        x => x.MatchLdnull(),
-                        x => x.MatchStloc(7),
-                        x => x.MatchLdcR4(0.0f),
-                        x => x.MatchStloc(8),
-                        x => x.MatchLdstr(""),
-                        x => x.MatchStloc(9),
+                        x => x.MatchLdcR4(1),
+                        x => x.MatchStloc(28),
+                        x => x.MatchLdcR4(float.NegativeInfinity),
+                        x => x.MatchStloc(28),
                         x => x.MatchLdarg(0)
                         );
                     c.Index += 2;
@@ -234,7 +272,7 @@ namespace BanditClassic
                         return 0.0f;
                     });
                 };
-            }
+            }*/
             base.StartCoroutine(this.FixIce());
         }
 
