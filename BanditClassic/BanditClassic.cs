@@ -16,7 +16,8 @@ using RoR2.Skills;
 namespace BanditClassic
 {
     [BepInDependency("com.bepis.r2api")]
-    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.5.1")]
+    [BepInPlugin("com.Moffein.BanditClassic", "Bandit Classic", "1.5.3")]
+	[R2API.Utils.R2APISubmoduleDependency(nameof(SurvivorAPI), nameof(SkillAPI), nameof(EntityAPI))]
     public class BanditClassic : BaseUnityPlugin
     {
 
@@ -39,9 +40,10 @@ namespace BanditClassic
             LightsOutForce = base.Config.Wrap<float>("Lights Out", "Force", "How much push force each shot has. Default: 1000", 1000f);
             LightsOutIgnoreArmor = base.Config.Wrap<bool>("Lights Out", "Ignores Armor", "Makes Lights Out ignore armor. This makes it not receive any benefits from Weaken/Shattering Justice. Default: false", false);
             LightsOutReloadsPrimary = base.Config.Wrap<bool>("Lights Out", "Reload Primary On-Use", "Automatically reload your primary when using Lights Out. Default: true", true);
+            LightsOutSecondary = base.Config.Wrap<bool>("Lights Out", "Use as Secondary", "Use Lights Out in the secondary slot. False puts it in the Special slot. Default: true", true);
 
             SmokeCooldown = base.Config.Wrap<float>("Smokebomb", "Cooldown", "How long Smokebomb takes to recharge. Default: 6", 6f);
-            SmokeDamage = base.Config.Wrap<float>("Smokebomb", "Damage", "How much damage Smokebomb deals. Default: 1.4", 1.4f);
+            SmokeDamage = base.Config.Wrap<float>("Smokebomb", "Damage", "How much damage Smokebomb deals. Default: 2", 2f);
             SmokeRadius = base.Config.Wrap<float>("Smokebomb", "Radius", "How large the stun aura is. Default: 10", 10f);
             SmokeMinDuration = base.Config.Wrap<float>("Smokebomb", "MinDuration", "How long a player must wait before being able to attack after entering cloak. Default: 0.4", 0.4f);
             SmokeDuration = base.Config.Wrap<float>("Smokebomb", "Invis Duration", "How long Smokebomb's Invisibility lasts. Default: 3", 3f);
@@ -51,8 +53,8 @@ namespace BanditClassic
             GrenRadius = base.Config.Wrap<float>("Grenade Toss", "Radius", "Grenade explosive radius. Default: 8", 8f);
             AcidBombEnabled = base.Config.Wrap<bool>("Grenade Toss", "Weaken on Hit", "Replace Grenade Toss with a weakening Acid Bomb. Default: true", true);
 
-            LightsOutExecute = base.Config.Wrap<bool>("zExperimental: Lights Out Execute", "Execute Low HP Enemies", "Experimental: Lights Out executes enemies below a certain HP. This setting is host-based. Default: false", false);
-            LightsOutExecutePercentageBase = base.Config.Wrap<float>("zExperimental: Lights Out Execute", "Execute HP Percentage", "Experimental: HP percentage where Lights Out executes. Default: 0.15", 0.15f);
+            LightsOutExecute = base.Config.Wrap<bool>("zExperimental: Lights Out Execute", "Execute Low HP Enemies", "Experimental: Lights Out executes enemies below a certain HP. This setting is host-based. Default: true", true);
+            LightsOutExecutePercentageBase = base.Config.Wrap<float>("zExperimental: Lights Out Execute", "Execute HP Percentage", "Experimental: HP percentage where Lights Out executes. Default: 0.2", 0.2f);
 
             LightsOutLevelScalingEnabled = base.Config.Wrap<bool>("zExperimental: Lights Out Damage Scaling", "Damage Scaling", "Experimental: Lights Out gains extra damage with each level. Default: false", false);
             LightsOutLevelScalingRate = base.Config.Wrap<float>("zExperimental: Lights Out Damage Scaling", "Damage Scaling Rate", "Experimental: How much extra damage Lights Out gains each level. Default: 0.1", 0.1f);
@@ -143,10 +145,10 @@ namespace BanditClassic
             {
                 secondaryDef.skillDescriptionToken += " Gains an extra <color=#E5C962>" + LightsOutLevelScalingRate.Value.ToString("P0").Replace(" ", "") + " damage</color> per level.";
             }
-            /* if (LightsOutExecute.Value)
-             {
+            if (LightsOutExecute.Value)
+            {
                  secondaryDef.skillDescriptionToken += " Enemies are instantly killed if their <color=#E5C962>health drops below " + LightsOutExecutePercentageBase.Value.ToString("P0").Replace(" ", "") + ".</color>";
-             }*/
+            }
             if (FireLightsOut.ignoreArmor)
             {
                 secondaryDef.skillDescriptionToken += " <color=#E5C962> Ignores armor.</color>";
@@ -166,7 +168,6 @@ namespace BanditClassic
             secondaryDef.mustKeyPress = false;
             secondaryDef.requiredStock = 1;
             secondaryDef.stockToConsume = 1;
-            skillComponent.secondary.skillFamily.variants[0].skillDef = secondaryDef;
             #endregion
             #region utility
             skillComponent.utility.skillFamily.variants[0].skillDef.baseRechargeInterval = SmokeCooldown.Value;
@@ -222,9 +223,29 @@ namespace BanditClassic
             specialDef.mustKeyPress = false;
             specialDef.requiredStock = 1;
             specialDef.stockToConsume = 1;
-
-            skillComponent.special.skillFamily.variants[0].skillDef = specialDef;
             #endregion
+
+            if (LightsOutSecondary.Value)
+            {
+                skillComponent.secondary.skillFamily.variants[0].skillDef = secondaryDef;
+                skillComponent.special.skillFamily.variants[0].skillDef = specialDef;
+            }
+            else
+            {
+                skillComponent.secondary.skillFamily.variants[0].skillDef = specialDef;
+                skillComponent.special.skillFamily.variants[0].skillDef = secondaryDef;
+                PrepLightsOut.isSecondary = false;
+            }
+
+            SkillAPI.AddSkill(typeof(EntityStates.Bandit.Blast));
+            SkillAPI.AddSkill(typeof(EntityStates.Bandit.PrepLightsOut));
+            SkillAPI.AddSkill(typeof(EntityStates.Bandit.FireLightsOut));
+            SkillAPI.AddSkill(typeof(EntityStates.Bandit.GrenadeToss));
+
+            SkillAPI.AddSkillFamily(skillComponent.primary.skillFamily);
+            SkillAPI.AddSkillFamily(skillComponent.secondary.skillFamily);
+            SkillAPI.AddSkillFamily(skillComponent.utility.skillFamily);
+            SkillAPI.AddSkillFamily(skillComponent.special.skillFamily);
         }
         public void Awake()
         {
@@ -305,7 +326,7 @@ namespace BanditClassic
             private IEnumerator RevolverAnim()
             {
                 Animator animator = base.gameObject.GetComponent<Animator>();
-                EffectManager.instance.SpawnEffect(Resources.Load<GameObject>("prefabs/effects/smokescreeneffect"), new EffectData
+                EffectManager.SpawnEffect(Resources.Load<GameObject>("prefabs/effects/smokescreeneffect"), new EffectData
                 {
                     origin = base.gameObject.transform.position
                 }, false);
@@ -367,6 +388,8 @@ namespace BanditClassic
         private static ConfigWrapper<float> LightsOutLevelScalingMax;
 
         private static ConfigWrapper<bool> AcidBombEnabled;
+
+        private static ConfigWrapper<bool> LightsOutSecondary;
     }
 }
 
@@ -388,7 +411,7 @@ namespace EntityStates.Bandit
             string muzzleName = "MuzzleShotgun";
             if (Blast.effectPrefab)
             {
-                EffectManager.instance.SimpleMuzzleFlash(Blast.effectPrefab, base.gameObject, muzzleName, false);
+                EffectManager.SimpleMuzzleFlash(Blast.effectPrefab, base.gameObject, muzzleName, false);
             }
             if (base.isAuthority)
             {
@@ -486,7 +509,12 @@ namespace EntityStates.Bandit
         public override void FixedUpdate()
         {
             base.FixedUpdate();
-            if (base.fixedAge >= this.duration && base.isAuthority)
+            if (base.fixedAge >= this.duration && base.isAuthority && isSecondary)
+            {
+                this.outer.SetNextState(new FireLightsOut());
+                return;
+            }
+            else if (base.fixedAge >= this.duration && base.isAuthority && !inputBank.skill4.down)
             {
                 this.outer.SetNextState(new FireLightsOut());
                 return;
@@ -515,6 +543,7 @@ namespace EntityStates.Bandit
         private ChildLocator childLocator;
         private GameObject defaultCrosshairPrefab = Resources.Load<GameObject>("prefabs/crosshair/banditcrosshair");
         public static bool reloadPrimary = true;
+        public static bool isSecondary = true;
     }
 
     public class FireLightsOut : BaseState
@@ -532,7 +561,7 @@ namespace EntityStates.Bandit
             base.PlayAnimation("Gesture, Override", "FireRevolver");
             if (FireLightsOut.effectPrefab)
             {
-                EffectManager.instance.SimpleMuzzleFlash(FireLightsOut.effectPrefab, base.gameObject, muzzleName, false);
+                EffectManager.SimpleMuzzleFlash(FireLightsOut.effectPrefab, base.gameObject, muzzleName, false);
             }
             if (base.isAuthority)
             {
